@@ -1003,6 +1003,20 @@ impl<T: ThreadMode, D: DBInner> DBCommon<T, D> {
         self.flush_cf_opt(cf, &FlushOptions::default())
     }
 
+    pub fn disable_file_deletions(&self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(ffi::rocksdb_disable_file_deletions(self.inner.inner()));
+        }
+        Ok(())
+    }
+
+    pub fn enable_file_deletions(&self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(ffi::rocksdb_enable_file_deletions(self.inner.inner()));
+        }
+        Ok(())
+    }
+
     /// Return the bytes associated with a key value with read options. If you only intend to use
     /// the vector returned temporarily, consider using [`get_pinned_opt`](#method.get_pinned_opt)
     /// to avoid unnecessary memory copy.
