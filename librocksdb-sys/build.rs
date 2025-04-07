@@ -65,6 +65,83 @@ fn check_getauxval_supported() -> bool {
     }
 }
 
+fn make_rocksdb() {
+    println!("Building RocksDB using bundled Makefile...");
+
+    // Determine the number of parallel jobs for make
+    let cpus = std::thread::available_parallelism()
+        .map(|p| p.get())
+        .unwrap_or(2);
+
+    // Prepare environment variables
+    let mut cmd = Command::new("make");
+    cmd.current_dir("rocksdb")
+        .arg("-j")
+        .arg(cpus.to_string())
+        .arg("static_lib");
+
+    // Add conditional feature flags to the make command
+    if cfg!(feature = "snappy") {
+        cmd.env("SNAPPY", "1");
+    }
+
+    if cfg!(feature = "lz4") {
+        cmd.env("LZ4", "1");
+    }
+
+    if cfg!(feature = "zstd") {
+        cmd.env("ZSTD", "1");
+    }
+
+    if cfg!(feature = "zlib") {
+        cmd.env("ZLIB", "1");
+    }
+
+    if cfg!(feature = "bzip2") {
+        cmd.env("BZIP2", "1");
+    }
+
+    if cfg!(feature = "rtti") {
+        cmd.env("USE_RTTI", "1");
+    }
+
+    // Forward CXXFLAGS if they exist
+    if let Ok(cxx_flags) = env::var("CXXFLAGS") {
+        cmd.env("EXTRA_CXXFLAGS", cxx_flags);
+    }
+
+    // Execute the make command
+    let status = cmd.status().expect("Failed to execute make command");
+
+    if !status.success() {
+        panic!("Failed to build RocksDB using make: {}", status);
+    }
+
+    // Verify the library exists
+    if !Path::new("rocksdb/librocksdb.a").exists() {
+        panic!("Built RocksDB but librocksdb.a was not found in the expected location");
+    }
+
+    // This is the absolute path to the rocksdb directory
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let rocksdb_dir = Path::new(&manifest_dir).join("rocksdb");
+    let rocksdb_dir_str = rocksdb_dir.to_str().unwrap();
+
+    println!("Linking to RocksDB from: {}", rocksdb_dir_str);
+
+    // Tell cargo to link the static library from the rocksdb directory
+    println!("cargo:rustc-link-search=native={}", rocksdb_dir_str);
+    println!("cargo:rustc-link-lib=static=rocksdb");
+
+    // On Unix-like systems, we also need to link against the C++ standard library
+    let target = env::var("TARGET").unwrap();
+    if target.contains("linux") {
+        println!("cargo:rustc-link-lib=stdc++");
+    } else if !target.contains("windows") && !target.contains("msvc") {
+        println!("cargo:rustc-link-lib=c++");
+    }
+}
+
 fn build_rocksdb() {
     let target = env::var("TARGET").unwrap();
 
@@ -448,7 +525,12 @@ fn main() {
 
         println!("cargo:rerun-if-changed=rocksdb/");
         fail_on_empty_directory("rocksdb");
-        build_rocksdb();
+
+        if cfg!(feature = "make-build") {
+            make_rocksdb();
+        } else {
+            build_rocksdb();
+        }
     }
     if cfg!(feature = "snappy") && !try_to_find_and_link_lib("SNAPPY") {
         println!("cargo:rerun-if-changed=snappy/");
