@@ -13,11 +13,9 @@
 // limitations under the License.
 //
 
-use std::ffi::{CStr, CString};
-use std::slice;
 use std::sync::Arc;
 
-use libc::{c_char, c_int, c_uchar, c_void, size_t};
+use libc::c_void;
 
 use crate::ffi;
 use crate::ffi::{
@@ -25,7 +23,7 @@ use crate::ffi::{
     rocksdb_tablefilecreationbriefinfo_t, rocksdb_tablefilecreationinfo_t,
     rocksdb_tablefiledeletioninfo_t, rocksdb_writestallinfo_t,
 };
-use crate::ffi_util::{from_cstr, to_cpath};
+use crate::ffi_util::from_cstr;
 
 /// Trait for RocksDB event listeners
 pub trait EventListener: Send + Sync {

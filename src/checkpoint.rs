@@ -31,6 +31,16 @@ pub struct Checkpoint<'db> {
     _db: PhantomData<&'db ()>,
 }
 
+pub struct CheckpointExportOpts {
+    pub flush: bool,
+}
+
+impl Default for CheckpointExportOpts {
+    fn default() -> Self {
+        Self { flush: true }
+    }
+}
+
 impl<'db> Checkpoint<'db> {
     /// Creates new checkpoint object for specific DB.
     ///
@@ -104,6 +114,36 @@ impl<'db> Checkpoint<'db> {
                 cpath.as_ptr(),
             ))
         };
+        Ok(ExportImportFilesMetaData { inner: metadata })
+    }
+
+    pub fn export_column_family_opts<P: AsRef<Path>>(
+        &self,
+        column_family: &impl AsColumnFamilyRef,
+        opts: &CheckpointExportOpts,
+        export_path: P,
+    ) -> Result<ExportImportFilesMetaData, Error> {
+        let cpath = to_cpath(export_path)?;
+        let column_family_handle = column_family.inner();
+
+        let c_opts = unsafe {
+            let c_opts = ffi::rocksdb_checkpoint_export_opts_create();
+            ffi::rocksdb_checkpoint_export_opts_set_flush(c_opts, opts.flush);
+            c_opts
+        };
+
+        let metadata = unsafe {
+            ffi_try!(ffi::rocksdb_checkpoint_export_column_family_opts(
+                self.inner,
+                column_family_handle,
+                c_opts,
+                cpath.as_ptr(),
+            ))
+        };
+        unsafe {
+            ffi::rocksdb_checkpoint_export_opts_destroy(c_opts);
+        }
+
         Ok(ExportImportFilesMetaData { inner: metadata })
     }
 }

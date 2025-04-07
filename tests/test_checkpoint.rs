@@ -17,7 +17,7 @@ mod util;
 use pretty_assertions::assert_eq;
 use std::path::Path;
 
-use rust_rocksdb::checkpoint::Checkpoint;
+use rust_rocksdb::checkpoint::{Checkpoint, CheckpointExportOpts};
 use rust_rocksdb::{
     DBWithThreadMode, ExportImportFilesMetaData, ImportColumnFamilyOptions, IteratorMode,
     MultiThreaded, Options, DB,
@@ -127,15 +127,18 @@ pub fn test_export_checkpoint_column_family() {
     db.put_cf(&cf2, b"k1", b"v1_cf2").unwrap();
     db.put_cf(&cf2, b"k2", b"v2_cf2").unwrap();
 
-    // The CF will be checkpointed at the time of export, not when the struct is created
+    // The CF checkpoint will be as at the time of export, not when the struct is created
     let cp = Checkpoint::new(&db).unwrap();
 
-    db.flush_cf(&cf1).expect("flush succeeds"); // Create an additonal SST to export
+    db.flush_cf(&cf1).expect("flush succeeds"); // Create an additional SST to export
     db.delete_cf(&cf1, b"k2").unwrap();
     db.put_cf(&cf1, b"k3", b"v3").unwrap();
 
+    let export_opts = CheckpointExportOpts {
+        flush: true,
+    };
     let cf1_export_path = DBPath::new(&format!("{PATH_PREFIX}cf1-export"));
-    let export_metadata = cp.export_column_family(&cf1, &cf1_export_path).unwrap();
+    let export_metadata = cp.export_column_family_opts(&cf1, &export_opts, &cf1_export_path).unwrap();
 
     // Modify the column family after export - these changes will NOT be observable
     db.put_cf(&cf1, b"k4", b"v4").unwrap();
@@ -147,7 +150,7 @@ pub fn test_export_checkpoint_column_family() {
     opts.create_if_missing(true);
     let db_new = DBWithThreadMode::<MultiThreaded>::open(&opts, &db_path).unwrap();
 
-    // Prepopulate some data in the destination DB - this should remain intact after import
+    // Pre-populate some data in the destination DB - this should remain intact after import
     {
         db_new.create_cf("cf0", &opts).unwrap();
         let cf0 = db_new.cf_handle("cf0").unwrap();
