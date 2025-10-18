@@ -14,7 +14,7 @@
 
 use libc::{c_int, c_uchar, c_void};
 
-use crate::{db::DBInner, ffi, ffi_util::from_cstr, Cache, Error};
+use crate::{db::DBInner, db_options::Cache, ffi, ffi_util::from_cstr, Error};
 use crate::{DBCommon, ThreadMode, TransactionDB, DB};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
